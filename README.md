@@ -2,6 +2,12 @@
 
 Advanced reviewers' tools for reviewing more professionally. 
 
+
+## Disclaimer
+
+This is not intended as a serious effort, please use the base project 
+[ASReview](https://github.com/asreview/asreview).
+
 ## Install
 
 ```bash
