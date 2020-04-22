@@ -16,9 +16,14 @@ import numpy as np
 import questionary as questionary
 
 from asreview.review import BaseReview
-from asreview.types import convert_list_type
 from asreview.state.utils import open_state
 from asreview.config import LABEL_NA
+
+
+def convert_list_type(x, to_type=int):
+    """Convert elements in list to given type."""
+
+    return list(map(to_type, x))
 
 
 def update_stats(stats, label):

@@ -21,6 +21,12 @@ class OracleEntryPoint(BaseEntryPoint):
     def execute(self, argv):
         parser = _base_parser()
         parser.add_argument(
+            "dataset",
+            type=str,
+            nargs="*",
+            help="File path to the dataset or one of the built-in datasets."
+        )
+        parser.add_argument(
             "--new",
             default=False,
             action="store_true",
