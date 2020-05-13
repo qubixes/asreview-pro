@@ -1,5 +1,3 @@
-
-from collections import OrderedDict
 from math import floor
 
 import numpy as np
@@ -23,22 +21,14 @@ def sample_proba(proba):
         sample_idx.append(last_bound)
         last_bound = np.searchsorted(cum_proba, i, side='right')
         last_bound = order[last_bound]
-#         print(i, last_bound, proba[last_bound])
-#     if np.random.random_sample() < cum_proba[-1]-floor(cum_proba[-1]):
-#         sample_idx.append(last_bound)
     return sample_idx, cum_proba[-1]
 
 
 def estimate_inclusions(train_idx, pool_idx, X, y, model):
-#     temp_labels = np.zeros(y.shape)
-#     temp_labels[train_idx] = y[train_idx]
     model.fit(X[train_idx], y[train_idx])
-#     print(model._model.decision_function(X))
-#     proba = model.predict_proba(X)[:, 1]
     df_values = model._model.decision_function(X).reshape((-1, 1))
     C = np.sum(y[train_idx])/(len(y)-np.sum(y[train_idx]))
     log_model = LogisticRegression(penalty="l2", fit_intercept=True, C=C)
-#     print(df_values.reshape((-1, 1)))
 
     temp_ones = np.array([], dtype=int)
     n_extra_ones = 0
@@ -55,32 +45,10 @@ def estimate_inclusions(train_idx, pool_idx, X, y, model):
         n_extra_ones = len(temp_ones)
     print(len(pool_idx), cum_proba)
     return len(temp_ones)
-#     print(len(temp_ones), cum_proba)
-#     print("--------------------")
-#     print(-np.log(1/proba-1))
-#     for _ in range(5):
-#         new_temp_labels = np.zeros(y.shape)
-#         new_temp_labels[train_idx] = y[train_idx]
-# #         pool_order = pool_idx[np.argsort(-proba[pool_idx])]
-#         n_choice = round(np.sum(proba) - np.sum(y[train_idx]))
-# #         n_choice = round(np.sum(proba[pool_idx]))
-#         p = proba[pool_idx]/np.sum(proba[pool_idx])
-#         temp_ones = np.random.choice(pool_idx, int(n_choice), p=p,
-#                                      replace=False)
-#         new_temp_labels[temp_ones] = 1
-#         model.fit(X, new_temp_labels)
-#         proba = model.predict_proba(X)[:, 1]
-#         print(np.sum(new_temp_labels), np.sum(proba))
-#         print(temp_ones)
-#         print(proba[pool_order])
-#     print(-np.sort(-proba))
-#     print(np.sum(proba))
-#     print(np.sum(y), np.sum(y[train_idx]))
-#     return [np.sum(y[pool_idx]), np.sum(proba[pool_idx])]
 
 
 class ErrorEntryPoint(BaseEntryPoint):
-    description = "XXX."
+    description = "FastRead2 error computation [attempt]."
 
     def __init__(self):
         super(ErrorEntryPoint, self).__init__()

@@ -53,7 +53,7 @@ setup(
         "asreview.entry_points": [
             "pro = asreviewcontrib.pro.entrypoint:OracleEntryPoint",
             "difficult = asreviewcontrib.pro.difficult:DifficultEntryPoint",
-            "error = asreviewcontrib.pro.error:ErrorEntryPoint",
+            "error_fr2 = asreviewcontrib.pro.error_fr2:ErrorEntryPoint",
             "error2 = asreviewcontrib.pro.error2:ErrorEntryPoint"
         ],
         "asreview.feature_extraction": [

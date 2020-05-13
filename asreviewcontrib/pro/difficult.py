@@ -6,7 +6,7 @@ from asreview.entry_points.base import BaseEntryPoint
 
 
 class DifficultEntryPoint(BaseEntryPoint):
-    description = "XXX."
+    description = "Show the most difficult records."
 
     def __init__(self):
         super(DifficultEntryPoint, self).__init__()
