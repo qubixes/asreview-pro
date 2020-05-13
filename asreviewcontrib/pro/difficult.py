@@ -1,5 +1,4 @@
-
-from collections import OrderedDict
+from argparse import ArgumentParser
 
 from asreview import ASReviewData
 from asreview.analysis import Analysis
@@ -18,22 +17,45 @@ class DifficultEntryPoint(BaseEntryPoint):
         self.extension_name = __extension_name__
 
     def execute(self, argv):
-        state_path = argv[0]
-        data_path = argv[1]
-        try:
-            top_n = argv[2]
-        except IndexError:
-            top_n = 3
+        parser = _parse_arguments()
+        arg_dict = vars(parser.parse_args(argv))
 
+        state_path = arg_dict["state_path"]
+        data_path = arg_dict["data_path"]
+        top_n = arg_dict["top"]
         as_data = ASReviewData.from_file(data_path)
-        analysis = Analysis.from_path(state_path)
-        ttd = analysis.avg_time_to_discovery(result_format="percentage")
-        order = sorted(ttd, key=lambda x: -ttd[x])
-#         ttd = OrderedDict((key, ttd[key]) for key in order)
+
+        order, ttd = self.find_order(state_path)
         for key in order[:top_n]:
             print(f"{ttd[key]:.2f} %")
             as_data.print_record(key)
-#             print(key, ttd[key])
-#         print(ttd)
-#         print(sorted(ttd, key=lambda x: -ttd[x]))
+
+    def find_order(self, state_path):
+        analysis = Analysis.from_path(state_path)
+        ttd = analysis.avg_time_to_discovery(result_format="percentage")
         analysis.close()
+        order = sorted(ttd, key=lambda x: -ttd[x])
+        return order, ttd
+
+
+def _parse_arguments():
+    parser = ArgumentParser(prog="asreview difficult")
+
+    parser.add_argument(
+        'state_path',
+        type=str,
+        help="Path to state/log file to analyze."
+    )
+    parser.add_argument(
+        'data_path',
+        type=str,
+        help="Path to data file corresponding to the state file."
+    )
+    parser.add_argument(
+        "-n", "--top",
+        type=int,
+        default=3,
+        help="Determines how many entries are shown."
+    )
+
+    return parser

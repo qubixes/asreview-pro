@@ -1,6 +1,7 @@
 
 from collections import OrderedDict
 from math import floor
+import json
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -15,6 +16,8 @@ from asreview.feature_extraction import get_feature_model
 from asreview.state import open_state
 from sklearn.linear_model import LogisticRegression
 from scipy.optimize import minimize
+
+from asreviewcontrib.pro.powertail import ExpTailNorm
 
 
 def sample_proba(proba):
@@ -33,18 +36,55 @@ def sample_proba(proba):
     return sample_idx, cum_proba[-1]
 
 
-def discrete_norm_dist(mu, sigma, train_percentage, bins):
-    norm_cdf = stats.norm.cdf(bins, loc=mu, scale=sigma)
+def discrete_norm_dist(dist, train_percentage, bins):
+    norm_cdf = dist.cdf(bins)
     norm_pdf = train_percentage*(norm_cdf[1:]-norm_cdf[:-1])
     norm_hist = norm_pdf/norm_pdf.sum()
     return norm_hist/(bins[1]-bins[0])
 
 
-def percentage_found(mu, sigma, train_percentage, bins):
-    norm_cdf = stats.norm.cdf(bins, loc=mu, scale=sigma)
-    norm_dpdf = (norm_cdf[1:]-norm_cdf[:-1])
-    norm_dpdf /= norm_dpdf.sum()
-    return np.sum(train_percentage*norm_dpdf)
+def percentage_found(norm_opt_cum_df, train_percentage, bins, mu, sigma):
+    normalized_bins = (bins-mu)/sigma
+    x_cum = norm_opt_cum_df[0]
+    y_cum = norm_opt_cum_df[1]
+    d_cum = y_cum[1]-y_cum[0]
+
+    prob_found = 0
+    for i_bin in range(len(train_percentage)):
+        bin_start = normalized_bins[i_bin]
+        bin_end = normalized_bins[i_bin+1]
+
+        i_cum_start = np.searchsorted(x_cum, bin_start)
+        i_cum_end = np.searchsorted(x_cum, bin_end)
+
+        if i_cum_start == len(x_cum):
+            continue
+
+        y_start = y_cum[i_cum_start] - d_cum
+        if i_cum_end == len(x_cum):
+            y_end = 1
+        else:
+            y_end = y_cum[i_cum_end] - d_cum
+
+        prob = y_end-y_start
+        prob_found += prob*train_percentage[i_bin]
+
+    return prob_found
+
+
+def prob_all_found(min_df, df_pool, mu, sigma):
+    df_max = np.max(df_pool)
+    df_max_norm = (df_max-mu)/sigma
+
+    x_min_df = min_df[0]
+    y_min_df = min_df[1]
+
+    i_min_df = np.searchsorted(x_min_df, df_max_norm)
+
+    if i_min_df == 0:
+        return 1.0
+    else:
+        return 1-y_min_df[i_min_df - 1]
 
 
 def kl_divergence(train_dist, norm_dist):
@@ -56,22 +96,21 @@ def kl_divergence(train_dist, norm_dist):
     return klb
 
 
+def log_likelihood(train_dist, expected_dist):
+    likelihood = 0
+    for i_bin in range(len(expected_dist)):
+        if train_dist[i_bin]:
+            likelihood += train_dist[i_bin] * np.log(expected_dist[i_bin])
+    return -likelihood
 
-# def log_likelihood(values, distribution):
-#     
-#     for i in range(len(bins)-1):
-#         
 
-def estimate_inclusions(train_idx, pool_idx, X, y, proba, plot=False):
-#     temp_labels = np.zeros(y.shape)
-#     temp_labels[train_idx] = y[train_idx]
-#     model.fit(X[train_idx], y[train_idx])
-#     print(model._model.decision_function(X))
-#     proba = model.predict_proba(X)[:, 1]
-
+def estimate_inclusions(train_idx, pool_idx, X, y, optimization_fp, plot=False):
     model = get_model("nb")
     balance_model = get_balance_model("double")
     X_train, y_train = balance_model.sample(X, y, train_idx, {})
+
+    with open(optimization_fp, "r") as f:
+        opt_results = json.load(f)
 
     model.fit(X_train, y_train)
     proba = model.predict_proba(X)[:, 1]
@@ -123,99 +162,35 @@ def estimate_inclusions(train_idx, pool_idx, X, y, proba, plot=False):
 #     perc_train = hist_train/(hist_all+0.0001)
 
     def guess_func(x):
-        mu = x[0]
-        sigma = x[1]
-        corrected_dist = discrete_norm_dist(mu, sigma, perc_train, bin_edges)
-        return kl_divergence(hist, corrected_dist)
+        dist = ExpTailNorm(*x, *opt_results["extra_param"])
+        corrected_dist = discrete_norm_dist(dist, perc_train, bin_edges)
+        return log_likelihood(hist, corrected_dist)
 
     mu_range = h_range
-    sigma_range = (2*(h_max-h_min)/n_bins, h_max-h_min)
-    x0 = np.array((np.average(df_one_corrected), np.var(df_one_corrected)))
+    est_sigma = np.sqrt(np.var(df_one_corrected))
+    sigma_range = (0.7*est_sigma, 1.3*est_sigma)
+    x0 = np.array((np.average(df_one_corrected), est_sigma))
 
-    mu_best, sigma_best = minimize(fun=guess_func, x0=x0,
-                                   bounds=[mu_range, sigma_range]).x
-    corrected_dist = discrete_norm_dist(mu_best, sigma_best, perc_train, bin_edges)
+    minim_result = minimize(fun=guess_func, x0=x0,
+                            bounds=[mu_range, sigma_range])
 
+#     print(minim_result)
+    param = minim_result.x
+    est_true_dist = ExpTailNorm(*param, *opt_results["extra_param"])
 
-#     for mu in np.linspace(2.0, 3.0, 50):
-#         corrected_dist = discrete_norm_dist(mu, 0.4, perc_train, bin_edges)
-#         klb = kl_divergence(hist, corrected_dist)
-#         print(mu, klb)
+    est_found_dist = discrete_norm_dist(est_true_dist, perc_train, bin_edges)
 
+    perc_found = percentage_found(opt_results["cum_df"], perc_train, bin_edges,
+                                  param[0], param[1])
 
-#     print(hist, bin_edges)
-#     print(correct_one_proba)
-#     print(np.average(correct_one_proba))
-
-#     print(discrete_norm_dist(3, 1, bin_edges).sum())
-
-    perc_found = percentage_found(mu_best, sigma_best, perc_train, bin_edges)
+    p_all_found = prob_all_found(
+        opt_results["min_df"], df_pool, param[0], param[1])
     if plot:
-        plt.plot((bin_edges[1:]+bin_edges[:-1])/2, corrected_dist)
+        plt.plot((bin_edges[1:]+bin_edges[:-1])/2, est_found_dist)
         plt.plot((bin_edges[1:]+bin_edges[:-1])/2, hist)
         plt.plot((bin_edges[1:]+bin_edges[:-1])/2, perc_train)
         plt.show()
-    return np.sum(y[train_idx])/perc_found
-#     zero_idx = np.where(y == 0)[0]
-#     one_idx = np.where(y == 1)[0]
-# #     df_values = proba
-# #     model.fit(X[train_idx], y[train_idx])
-# #     df_values = model._model.decision_function(X).reshape((-1, 1))
-#     df_values = -np.log(1/proba-1)
-# #     df_values = model.predict_proba(X)[:, 1]
-# #     print(model._model.classes_)
-# #     print(model.predict_proba(X[one_idx]))
-#     df_train_zero = df_values[train_idx[np.where(y[train_idx] == 0)[0]]]
-#     print([np.average(df_train_zero), np.average(df_values[one_idx]),
-#            np.average(df_values[zero_idx]), np.average(df_one_corrected)])
-#     plt.hist([df_train_zero, df_values[one_idx], df_values[zero_idx], df_one_corrected], 30, histtype='bar', density=True)
-# #     plt.hist(df_values[one_idx])
-# #     plt.hist(df_values[zero_idx])
-#     plt.show()
-#     print(np.sum(y[pool_idx]))
-#     return
-#     
-#     C = np.sum(y[train_idx])/(len(y)-np.sum(y[train_idx]))
-#     log_model = LogisticRegression(penalty="l2", fit_intercept=True, C=C)
-# #     print(df_values.reshape((-1, 1)))
-# 
-#     temp_ones = np.array([], dtype=int)
-#     n_extra_ones = 0
-#     for _ in range(500):
-#         temp_labels = np.zeros(y.shape)
-#         temp_labels[train_idx] = y[train_idx]
-#         temp_labels[temp_ones] = 1
-#         log_model.fit(df_values, temp_labels)
-#         log_proba = log_model.predict_proba(df_values)[:, 1]
-#         rel_sample_idx, cum_proba = sample_proba(log_proba[pool_idx])
-#         temp_ones = pool_idx[rel_sample_idx]
-#         if len(temp_ones) == n_extra_ones:
-#             break
-#         n_extra_ones = len(temp_ones)
-#     print(len(pool_idx), cum_proba)
-#     return len(temp_ones)
-#     print(len(temp_ones), cum_proba)
-#     print("--------------------")
-#     print(-np.log(1/proba-1))
-#     for _ in range(5):
-#         new_temp_labels = np.zeros(y.shape)
-#         new_temp_labels[train_idx] = y[train_idx]
-# #         pool_order = pool_idx[np.argsort(-proba[pool_idx])]
-#         n_choice = round(np.sum(proba) - np.sum(y[train_idx]))
-# #         n_choice = round(np.sum(proba[pool_idx]))
-#         p = proba[pool_idx]/np.sum(proba[pool_idx])
-#         temp_ones = np.random.choice(pool_idx, int(n_choice), p=p,
-#                                      replace=False)
-#         new_temp_labels[temp_ones] = 1
-#         model.fit(X, new_temp_labels)
-#         proba = model.predict_proba(X)[:, 1]
-#         print(np.sum(new_temp_labels), np.sum(proba))
-#         print(temp_ones)
-#         print(proba[pool_order])
-#     print(-np.sort(-proba))
-#     print(np.sum(proba))
-#     print(np.sum(y), np.sum(y[train_idx]))
-#     return [np.sum(y[pool_idx]), np.sum(proba[pool_idx])]
+    return np.sum(y[train_idx])/perc_found, p_all_found
 
 
 class ErrorEntryPoint(BaseEntryPoint):
@@ -232,6 +207,7 @@ class ErrorEntryPoint(BaseEntryPoint):
     def execute(self, argv):
         state_path = argv[0]
         data_path = argv[1]
+        optimization_fp = argv[2]
 
         as_data = ASReviewData.from_file(data_path)
         model = get_model("nb")
@@ -244,21 +220,27 @@ class ErrorEntryPoint(BaseEntryPoint):
         labels = as_data.labels
         all_n = []
         all_inclusions = []
+        all_p_found = []
         with open_state(state_path) as state:
             n_queries = state.n_queries()
             for query_i in range(n_queries):
-#             for query_i in [n_queries-1]:
                 try:
                     train_idx = state.get("train_idx", query_i=query_i)
                     pool_idx = state.get("pool_idx", query_i=query_i)
                     proba = state.get("proba", query_i=query_i)
                 except KeyError:
                     continue
-                n_inc = estimate_inclusions(train_idx, pool_idx, X, labels, proba,
-                                            plot=(query_i == n_queries-1))
-                print(n_inc, np.sum(labels[train_idx]), np.sum(labels))
+                n_inc, p_all = estimate_inclusions(
+                    train_idx, pool_idx, X, labels,
+                    optimization_fp)
+                print(n_inc, np.sum(labels[train_idx]), np.sum(labels), p_all)
                 all_n.append(n_inc)
+                all_p_found.append(p_all)
                 all_inclusions.append(np.sum(labels[train_idx]))
         plt.plot(all_n)
         plt.plot(all_inclusions)
+        plt.show()
+
+        plt.plot(all_p_found)
+        plt.plot(np.array(all_inclusions)/np.sum(labels))
         plt.show()
