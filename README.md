@@ -25,3 +25,10 @@ asreview pro ptsd
 In action:
 
 ![ASReview Command Line Interface](https://github.com/qubixes/asreview-pro/raw/master/docs/asreview-intro.gif)
+
+
+## Experimental features
+
+- BM25 feature extraction
+- Error FastRead2 (failed attempt).
+- Difficult: List the most difficult papers in the review.
