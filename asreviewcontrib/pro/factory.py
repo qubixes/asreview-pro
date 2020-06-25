@@ -15,6 +15,7 @@ from asreview.query_strategies.utils import get_query_model
 from asreview.balance_strategies.utils import get_balance_model
 from asreview.feature_extraction.utils import get_feature_model
 from asreview.review.factory import create_as_data
+from asreview.utils import get_random_state
 
 from asreviewcontrib.pro.oracle_mode import ReviewOracle
 
@@ -29,7 +30,6 @@ def get_reviewer(dataset,
                  n_papers=None,
                  n_queries=None,
                  embedding_fp=None,
-                 verbose=0,
                  prior_idx=None,
                  n_prior_included=DEFAULT_N_PRIOR_INCLUDED,
                  n_prior_excluded=DEFAULT_N_PRIOR_EXCLUDED,
@@ -39,6 +39,7 @@ def get_reviewer(dataset,
                  query_param=None,
                  balance_param=None,
                  feature_param=None,
+                 seed=None,
                  abstract_only=False,
                  included_dataset=[],
                  excluded_dataset=[],
@@ -91,12 +92,17 @@ def get_reviewer(dataset,
 
     logging.debug(settings)
 
-    train_model = get_model(settings.model, **settings.model_param)
+    random_state = get_random_state(seed)
+    train_model = get_model(settings.model, **settings.model_param,
+                            random_state=random_state)
     query_model = get_query_model(settings.query_strategy,
+                                  random_state=random_state,
                                   **settings.query_param)
     balance_model = get_balance_model(settings.balance_strategy,
+                                      random_state=random_state,
                                       **settings.balance_param)
     feature_model = get_feature_model(settings.feature_extraction,
+                                      random_state=random_state,
                                       **settings.feature_param)
 
     if train_model.name.startswith("lstm-"):
@@ -114,9 +120,7 @@ def get_reviewer(dataset,
         n_papers=settings.n_papers,
         n_instances=settings.n_instances,
         n_queries=settings.n_queries,
-        verbose=verbose,
         state_file=state_file,
-        data_fp=dataset,
         **kwargs)
 
     return reviewer
