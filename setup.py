@@ -53,8 +53,9 @@ setup(
         "asreview.entry_points": [
             "pro = asreviewcontrib.pro.entrypoint:OracleEntryPoint",
             "difficult = asreviewcontrib.pro.difficult:DifficultEntryPoint",
-            "error_fr2 = asreviewcontrib.pro.error_fr2:ErrorEntryPoint",
-            "error2 = asreviewcontrib.pro.error2:ErrorEntryPoint"
+#             "error_fr2 = asreviewcontrib.pro.error_fr2:ErrorEntryPoint",
+#             "error2 = asreviewcontrib.pro.error2:ErrorEntryPoint"
+            "keywords = asreviewcontrib.pro.keywords:KeywordEntryPoint",
         ],
         "asreview.feature_extraction": [
             "bm25 = asreviewcontrib.pro.bm25:BM25",
