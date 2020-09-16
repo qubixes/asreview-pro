@@ -378,7 +378,7 @@ def _parse_arguments():
         default="nb",
         help="Model to analyze. Same models as in the base ASReview system are"
         " available. Note that the feature extraction is set to TF-IDF. Some "
-        "models work better/worse with TF-IDF. Some may require too muc memory"
+        "models work better/worse with TF-IDF. Some may require too much memory"
         "."
     )
     return parser
