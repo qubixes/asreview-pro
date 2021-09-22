@@ -1,4 +1,4 @@
-# ASReview Pro Edition.
+# ASReview Pro Edition [Defunct]
 
 Advanced reviewers' tools for reviewing more professionally. 
 
